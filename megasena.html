@@ -15,7 +15,8 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background-color: #0a0a0a;
+            /* Cor de fundo diferente do preto do quadro para criar contraste */
+            background-color: #1a1c1e; 
             height: 100%;
             width: 100%;
             position: fixed;
@@ -27,22 +28,22 @@
             cursor: crosshair;
             background-color: #000;
             touch-action: none;
-            border: 1px solid #333;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            border: 2px solid #444;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
         }
         .ui-panel {
-            background: rgba(15, 15, 15, 0.9);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
         #wrapper {
-            background: radial-gradient(circle at center, #111 0%, #050505 100%);
-            flex: 1; /* Ocupa o máximo de espaço possível */
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             width: 100%;
             overflow: hidden;
+            padding: 10px;
         }
         #loading-overlay {
             position: fixed;
@@ -54,15 +55,16 @@
             justify-content: center;
             transition: opacity 0.5s;
         }
-        /* Mobile Specific Layout */
+        /* Mobile Specific Layout - 20% UI / 80% Game */
         @media (max-width: 768px) {
             #main-header {
-                height: 20%; /* Restringe a UI a 20% da altura */
-                min-height: 140px;
+                height: 25%; /* Leve aumento para caber todas as infos */
+                min-height: 160px;
                 padding: 0.5rem;
             }
             #wrapper {
-                height: 80%; /* Garante 80% para o canvas */
+                height: 75%;
+                padding: 5px;
             }
         }
     </style>
@@ -76,63 +78,58 @@
         </div>
     </div>
 
-    <!-- Interface Consolidada (Top 20% no mobile) -->
-    <header id="main-header" class="relative z-20 w-full flex flex-col md:flex-row gap-2 p-2 md:p-4 md:absolute md:top-0 md:left-0 md:w-80">
-        <div class="ui-panel p-2 md:p-4 rounded-xl shadow-2xl flex-1">
-            <div class="flex justify-between items-center md:block">
-                <h1 class="text-sm md:text-lg font-black text-green-500 leading-tight">MEGA-SENA GLOBAL<br><span class="text-white text-[8px] md:text-xs font-normal opacity-70">1 em 50.063.860</span></h1>
-                
-                <!-- Status Mobile Compacto -->
-                <div class="md:hidden flex gap-4 text-right">
-                    <div>
-                        <p class="text-[7px] text-zinc-500 uppercase">Cliques</p>
-                        <p id="clickCountMobile" class="text-xs font-bold text-blue-400">0</p>
-                    </div>
-                    <div>
-                        <p class="text-[7px] text-zinc-500 uppercase">Cobertura</p>
-                        <p id="accumulatedChanceMobile" class="text-xs font-bold">0%</p>
-                    </div>
-                </div>
+    <!-- Interface Consolidada (Topo) -->
+    <header id="main-header" class="ui-panel relative z-20 w-full p-3 md:p-6 md:absolute md:top-0 md:left-0 md:w-80 md:h-auto md:rounded-br-2xl md:border-r">
+        <div class="flex justify-between items-start">
+            <div>
+                <h1 class="text-base md:text-xl font-black text-green-500 leading-tight">MEGA-SENA GLOBAL</h1>
+                <p class="text-white text-[9px] md:text-xs font-normal opacity-70">1 em 50.063.860 combinações</p>
             </div>
             
-            <div class="mt-2 space-y-1 md:space-y-2">
-                <div class="flex gap-2">
-                    <button id="btnDraw" class="flex-1 bg-green-600 hover:bg-green-500 py-1 md:py-3 rounded-lg font-bold transition-all active:scale-95 text-[10px] md:text-sm">
-                        SORTEAR
-                    </button>
-                    <div id="resultBalls" class="flex gap-1 items-center">
-                        <div class="w-6 h-6 md:w-8 md:h-8 bg-zinc-800 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold border border-zinc-700">--</div>
-                        <div class="w-6 h-6 md:w-8 md:h-8 bg-zinc-800 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold border border-zinc-700">--</div>
-                    </div>
+            <!-- Status Compacto Lateral -->
+            <div class="text-right">
+                <div class="mb-1">
+                    <p class="text-[8px] text-zinc-500 uppercase leading-none">Cliques</p>
+                    <p id="clickCountDisplay" class="text-xs md:text-lg font-bold text-blue-400">0</p>
                 </div>
-
-                <div id="statusMessage" class="text-center py-1 text-[9px] font-bold rounded bg-zinc-900 text-zinc-500 border border-zinc-800">
-                    Toque no quadro abaixo
-                </div>
-
-                <div class="pt-1 border-t border-white/5 text-[8px] font-mono text-zinc-400 flex justify-between">
-                    <span>POS: <span id="coordsXY" class="text-green-400">0,0</span></span>
-                    <span class="hidden md:inline">ID: <span id="coordsId">#0</span></span>
+                <div>
+                    <p class="text-[8px] text-zinc-500 uppercase leading-none">Cobertura</p>
+                    <p id="chanceDisplay" class="text-xs md:text-lg font-bold">0%</p>
                 </div>
             </div>
         </div>
-
-        <!-- Painel Lateral (Apenas Desktop) -->
-        <div class="hidden md:flex ui-panel p-3 rounded-xl shadow-xl flex-col gap-2">
-            <div>
-                <p class="text-[8px] text-zinc-500 uppercase">Cliques Totais</p>
-                <p id="clickCount" class="text-lg font-bold text-blue-400">0</p>
+        
+        <div class="mt-3 space-y-2">
+            <div class="flex flex-col gap-2">
+                <button id="btnDraw" class="w-full bg-green-600 hover:bg-green-500 py-2 rounded-lg font-bold transition-all active:scale-95 text-xs md:text-sm shadow-lg shadow-green-900/20">
+                    SIMULAR SORTEIO (6 NÚMEROS)
+                </button>
+                
+                <!-- Área dos Números Sorteados -->
+                <div id="resultBalls" class="flex justify-between md:justify-start gap-1 items-center bg-black/40 p-2 rounded-lg border border-white/5">
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
+                </div>
             </div>
-            <div>
-                <p class="text-[8px] text-zinc-500 uppercase">Cobertura</p>
-                <p id="accumulatedChance" class="text-lg font-bold">0%</p>
+
+            <div id="statusMessage" class="text-center py-1 text-[10px] font-bold rounded bg-zinc-900/50 text-zinc-400 border border-white/5">
+                Toque no mapa para marcar seu pixel
+            </div>
+
+            <div class="pt-1 text-[9px] font-mono text-zinc-500 flex justify-between">
+                <span>POS: <span id="coordsXY" class="text-green-400">0,0</span></span>
+                <span id="coordsId" class="opacity-50">#0</span>
             </div>
         </div>
     </header>
 
-    <!-- Container do Canvas (80% no mobile) -->
+    <!-- Container do Canvas (Maximização do Espaço) -->
     <main id="wrapper">
-        <div class="relative flex items-center justify-center w-full h-full p-2">
+        <div class="relative flex items-center justify-center w-full h-full">
             <canvas id="megaCanvas"></canvas>
             <div id="markerLayer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
         </div>
@@ -141,9 +138,9 @@
     <!-- Overlay de Vitória -->
     <div id="winOverlay" class="hidden fixed inset-0 bg-green-600/95 z-50 flex items-center justify-center p-6 text-center">
         <div>
-            <h2 class="text-4xl md:text-6xl font-black italic mb-4 animate-bounce uppercase">Vitória Global!</h2>
-            <p class="text-lg">Alguém encontrou o pixel premiado.</p>
-            <button onclick="location.reload()" class="mt-8 bg-white text-green-700 px-8 py-3 rounded-full font-bold uppercase tracking-wider">Recomeçar</button>
+            <h2 class="text-4xl md:text-6xl font-black italic mb-4 animate-bounce uppercase">VITÓRIA!</h2>
+            <p class="text-lg">O pixel premiado foi encontrado.</p>
+            <button onclick="location.reload()" class="mt-8 bg-white text-green-700 px-8 py-3 rounded-full font-bold uppercase tracking-wider">Reiniciar</button>
         </div>
     </div>
 
@@ -159,10 +156,8 @@
         const coordsXY = document.getElementById('coordsXY');
         const btnDraw = document.getElementById('btnDraw');
         const resultBalls = document.getElementById('resultBalls');
-        const clickCountDisplay = document.getElementById('clickCount');
-        const clickCountMobile = document.getElementById('clickCountMobile');
-        const chanceDisplay = document.getElementById('accumulatedChance');
-        const chanceDisplayMobile = document.getElementById('accumulatedChanceMobile');
+        const clickCountDisplay = document.getElementById('clickCountDisplay');
+        const chanceDisplay = document.getElementById('chanceDisplay');
         const winOverlay = document.getElementById('winOverlay');
         const statusMessage = document.getElementById('statusMessage');
         const loadingOverlay = document.getElementById('loading-overlay');
@@ -173,7 +168,7 @@
 
         let savedClicks = [];
         let lastDrawPos = null;
-        let winningPixel = { x: 3500, y: 3500 }; 
+        let winningPixel = { x: 3538, y: 3538 }; 
         let user = null;
         let db, auth;
 
@@ -184,7 +179,7 @@
                     const app = initializeApp(firebaseConfig);
                     auth = getAuth(app);
                     db = getFirestore(app);
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-mobile-v1';
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-v2';
 
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         await signInWithCustomToken(auth, __initial_auth_token);
@@ -199,8 +194,8 @@
                         }
                     });
                 } else {
-                    loadingText.textContent = "Modo Local: Offline";
-                    setTimeout(() => { hideLoading(); draw(); }, 1500);
+                    loadingText.textContent = "Modo Offline";
+                    setTimeout(() => { hideLoading(); draw(); }, 1000);
                 }
             } catch (err) {
                 console.error("Init Error:", err);
@@ -231,20 +226,20 @@
         };
 
         const updateStats = () => {
-            const count = savedClicks.length.toLocaleString();
-            const chance = ((savedClicks.length / TOTAL_COMBINATIONS) * 100).toFixed(6) + "%";
+            const count = savedClicks.length;
+            const chance = ((count / TOTAL_COMBINATIONS) * 100).toFixed(7) + "%";
             
-            if (clickCountDisplay) clickCountDisplay.textContent = count;
-            if (clickCountMobile) clickCountMobile.textContent = count;
-            if (chanceDisplay) chanceDisplay.textContent = chance;
-            if (chanceDisplayMobile) chanceDisplayMobile.textContent = chance;
+            clickCountDisplay.textContent = count.toLocaleString();
+            chanceDisplay.textContent = chance;
         };
 
         function resize() {
             const wrapper = document.getElementById('wrapper');
-            const padding = 16;
+            const padding = 10;
             const availableWidth = wrapper.clientWidth - padding;
             const availableHeight = wrapper.clientHeight - padding;
+            
+            // Tenta usar o máximo de espaço mantendo proporção 1:1
             const size = Math.min(availableWidth, availableHeight);
             
             canvas.width = GRID_SIZE;
@@ -256,21 +251,27 @@
 
         function draw() {
             if (!ctx) return;
+            // Fundo do quadro (Preto Puro)
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
+            // "Ruído" para parecer pixels individuais
             ctx.fillStyle = '#111';
-            for (let i = 0; i < 20000; i++) {
-                ctx.fillRect(Math.random() * GRID_SIZE, Math.random() * GRID_SIZE, 2, 2);
+            for (let i = 0; i < 15000; i++) {
+                ctx.fillRect(Math.random() * GRID_SIZE, Math.random() * GRID_SIZE, 3, 3);
             }
 
-            ctx.fillStyle = '#3b82f6';
-            savedClicks.forEach(click => ctx.fillRect(click.x - 10, click.y - 10, 20, 20));
+            // Desenhar cliques
+            ctx.fillStyle = '#3b82f6'; // Azul vibrante
+            savedClicks.forEach(click => {
+                ctx.fillRect(click.x - 12, click.y - 12, 24, 24);
+            });
 
+            // Indicador de sorteio (última tentativa da máquina)
             if (lastDrawPos) {
                 ctx.strokeStyle = '#22c55e';
-                ctx.lineWidth = 4;
-                ctx.strokeRect(lastDrawPos.x - 30, lastDrawPos.y - 30, 60, 60);
+                ctx.lineWidth = 10;
+                ctx.strokeRect(lastDrawPos.x - 40, lastDrawPos.y - 40, 80, 80);
             }
         }
 
@@ -282,11 +283,11 @@
             if (x < 0 || y < 0 || x >= GRID_SIZE || y >= GRID_SIZE) return;
 
             coordsXY.textContent = `${x},${y}`;
-            if (coordsId) coordsId.textContent = `#${(y * GRID_SIZE + x).toLocaleString()}`;
+            coordsId.textContent = `#${(y * GRID_SIZE + x).toLocaleString()}`;
 
             if (db && user) {
                 try {
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-mobile-v1';
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-v2';
                     const clicksRef = collection(db, 'artifacts', appId, 'public', 'data', 'clicks');
                     await addDoc(clicksRef, { x, y, uid: user.uid, timestamp: Date.now() });
                 } catch (err) {}
@@ -296,25 +297,37 @@
                 draw();
             }
 
-            if (Math.abs(x - winningPixel.x) < 15 && Math.abs(y - winningPixel.y) < 15) {
+            if (Math.abs(x - winningPixel.x) < 20 && Math.abs(y - winningPixel.y) < 20) {
                 winOverlay.classList.remove('hidden');
             }
         };
 
         btnDraw.addEventListener('click', () => {
-            const nums = Array.from({length: 6}, () => Math.floor(Math.random() * 60) + 1).sort((a,b) => a-b);
+            // Sorteio de 6 números
+            const nums = [];
+            while(nums.length < 6) {
+                const n = Math.floor(Math.random() * 60) + 1;
+                if(!nums.includes(n)) nums.push(n);
+            }
+            nums.sort((a,b) => a-b);
+
             resultBalls.innerHTML = '';
-            nums.slice(0, 2).forEach(n => {
+            nums.forEach(n => {
                 const b = document.createElement('div');
-                b.className = "w-6 h-6 md:w-8 md:h-8 bg-green-600 rounded-full flex items-center justify-center text-[8px] md:text-[10px] font-bold border border-white/20";
+                b.className = "w-7 h-7 md:w-9 md:h-9 bg-green-600 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-white/20 shadow-md";
                 b.textContent = n.toString().padStart(2, '0');
                 resultBalls.appendChild(b);
             });
 
-            lastDrawPos = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE) };
-            const hit = savedClicks.some(c => Math.abs(c.x - lastDrawPos.x) < 50 && Math.abs(c.y - lastDrawPos.y) < 50);
-            statusMessage.textContent = hit ? "🎯 QUASE!" : "❌ Longe...";
-            statusMessage.className = `text-center py-1 text-[9px] font-bold rounded flex items-center justify-center px-2 ${hit ? 'bg-green-900 text-green-400' : 'bg-zinc-900 text-zinc-500'}`;
+            // Simula um "scan" aleatório no mapa
+            lastDrawPos = { 
+                x: Math.floor(Math.random() * GRID_SIZE), 
+                y: Math.floor(Math.random() * GRID_SIZE) 
+            };
+            
+            const hit = savedClicks.some(c => Math.abs(c.x - lastDrawPos.x) < 80 && Math.abs(c.y - lastDrawPos.y) < 80);
+            statusMessage.textContent = hit ? "🎯 QUASE! ACERTO NA ÁREA!" : "❌ Nenhum bilhete nesta zona.";
+            statusMessage.className = `text-center py-1 text-[10px] font-bold rounded flex items-center justify-center px-2 ${hit ? 'bg-green-900/40 text-green-400 border-green-500/30' : 'bg-zinc-900/50 text-zinc-500 border-white/5'}`;
             draw();
         });
 
