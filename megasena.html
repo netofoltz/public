@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mega-Sena: Escala Imersiva Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" type="module"></script>
+
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0a0a0a;
+            height: 100%;
+            width: 100%;
+            position: fixed; /* Evita bounce em iOS */
+        }
+        canvas {
+            image-rendering: pixelated;
+            cursor: crosshair;
+            background-color: #000;
+            touch-action: none;
+            border: 2px solid #1a1a1a;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+            transition: border-color 0.3s ease;
+            max-width: 95vw;
+            max-height: 70vh;
+        }
+        .ui-panel {
+            background: rgba(15, 15, 15, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        #tooltip {
+            pointer-events: none;
+            display: none;
+            transition: opacity 0.1s;
+        }
+        @keyframes ping-custom {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(3); opacity: 0; }
+        }
+        .marker-ping {
+            position: absolute;
+            border: 2px solid #22c55e;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 5;
+        }
+        #wrapper {
+            background: radial-gradient(circle at center, #111 0%, #050505 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 100%;
+            padding-top: 80px; /* Espaço para o header mobile */
+        }
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s;
+        }
+        /* Ajustes mobile-specific */
+        @media (max-width: 768px) {
+            #wrapper { padding-top: 120px; padding-bottom: 20px; }
+            .mobile-header { width: 100%; top: 0; left: 0; border-radius: 0; }
+            canvas { max-height: 50vh; }
+        }
+    </style>
+</head>
+<body class="text-white font-sans">
+
+    <div id="loading-overlay">
+        <div class="text-center p-6">
+            <div class="inline-block w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p class="text-green-500 font-bold tracking-widest uppercase text-sm">Sincronizando Probabilidades...</p>
+        </div>
+    </div>
+
+    <!-- Interface Adaptável -->
+    <div class="absolute top-0 left-0 w-full md:w-80 z-20 p-2 md:p-4 flex flex-col gap-2 md:gap-4 mobile-header">
+        <div class="ui-panel p-3 md:p-5 rounded-xl md:rounded-2xl shadow-2xl">
+            <h1 class="text-lg md:text-xl font-black text-green-500 leading-tight">MEGA-SENA GLOBAL<br><span class="text-white text-[10px] md:text-xs font-normal opacity-70">1 em 50.063.860</span></h1>
+            
+            <div class="mt-3 space-y-2">
+                <button id="btnDraw" class="w-full bg-green-600 hover:bg-green-500 py-2 md:py-3 rounded-lg md:rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2 text-sm">
+                    SIMULAR SORTEIO
+                </button>
+                
+                <div id="resultBalls" class="flex justify-between gap-1 overflow-x-auto pb-1">
+                    <div class="ball-slot min-w-[32px] h-8 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] font-bold border border-zinc-700">--</div>
+                    <div class="ball-slot min-w-[32px] h-8 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] font-bold border border-zinc-700">--</div>
+                    <div class="ball-slot min-w-[32px] h-8 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] font-bold border border-zinc-700">--</div>
+                    <div class="ball-slot min-w-[32px] h-8 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] font-bold border border-zinc-700">--</div>
+                    <div class="ball-slot min-w-[32px] h-8 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] font-bold border border-zinc-700">--</div>
+                    <div class="ball-slot min-w-[32px] h-8 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] font-bold border border-zinc-700">--</div>
+                </div>
+
+                <div id="statusMessage" class="text-center py-1.5 text-[10px] font-bold rounded-lg bg-zinc-900 text-zinc-500 border border-zinc-800 min-h-[32px] flex items-center justify-center">
+                    Toque no quadro para marcar
+                </div>
+            </div>
+
+            <div class="mt-2 pt-2 border-t border-white/10 text-[9px] font-mono text-zinc-400 flex justify-between">
+                <span>POS: <span id="coordsXY" class="text-green-400">0,0</span></span>
+                <span>ID: <span id="coordsId">#0</span></span>
+            </div>
+        </div>
+
+        <div class="ui-panel p-3 rounded-xl shadow-xl flex md:flex-col justify-around md:justify-start gap-2">
+            <div class="text-center md:text-left">
+                <p class="text-[8px] text-zinc-500 uppercase">Cliques</p>
+                <p id="clickCount" class="text-sm md:text-lg font-bold text-blue-400">0</p>
+            </div>
+            <div class="text-center md:text-left">
+                <p class="text-[8px] text-zinc-500 uppercase">Cobertura</p>
+                <p id="accumulatedChance" class="text-sm md:text-lg font-bold">0%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container do Canvas -->
+    <div id="wrapper">
+        <div class="relative flex items-center justify-center">
+            <canvas id="megaCanvas"></canvas>
+            <div id="markerLayer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+        </div>
+        
+        <div id="tooltip" class="absolute z-50 bg-white text-black text-[10px] font-bold px-2 py-1 rounded shadow-xl pointer-events-none"></div>
+    </div>
+
+    <!-- Overlay de Vitória -->
+    <div id="winOverlay" class="hidden fixed inset-0 bg-green-600/95 z-50 flex items-center justify-center p-6 text-center">
+        <div>
+            <h2 class="text-4xl md:text-6xl font-black italic mb-4 animate-bounce uppercase">Vitória Global!</h2>
+            <p class="text-lg">Alguém encontrou o pixel premiado.</p>
+            <button onclick="location.reload()" class="mt-8 bg-white text-green-700 px-8 py-3 rounded-full font-bold uppercase tracking-wider">Recomeçar</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-mobile-v1';
+
+        const canvas = document.getElementById('megaCanvas');
+        const ctx = canvas.getContext('2d');
+        const markerLayer = document.getElementById('markerLayer');
+        const coordsId = document.getElementById('coordsId');
+        const coordsXY = document.getElementById('coordsXY');
+        const btnDraw = document.getElementById('btnDraw');
+        const resultBalls = document.getElementById('resultBalls');
+        const clickCountDisplay = document.getElementById('clickCount');
+        const chanceDisplay = document.getElementById('accumulatedChance');
+        const winOverlay = document.getElementById('winOverlay');
+        const tooltip = document.getElementById('tooltip');
+        const statusMessage = document.getElementById('statusMessage');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        const TOTAL_COMBINATIONS = 50063860;
+        const GRID_SIZE = 7076; 
+
+        let savedClicks = [];
+        let lastDrawPos = null;
+        let winningPixel = { x: 3500, y: 3500 }; 
+        let user = null;
+
+        const initAuth = async () => {
+            try { await signInAnonymously(auth); } catch (err) { console.error(err); }
+        };
+
+        onAuthStateChanged(auth, (currUser) => {
+            if (currUser) {
+                user = currUser;
+                setupSync();
+            }
+        });
+
+        const setupSync = () => {
+            const clicksRef = collection(db, 'artifacts', appId, 'public', 'data', 'clicks');
+            const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config');
+
+            onSnapshot(configRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    winningPixel = docSnap.data().winningPixel;
+                } else {
+                    const newWinning = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE) };
+                    setDoc(configRef, { winningPixel: newWinning });
+                    winningPixel = newWinning;
+                }
+            });
+
+            onSnapshot(clicksRef, (snapshot) => {
+                savedClicks = [];
+                snapshot.forEach(doc => savedClicks.push(doc.data()));
+                updateStats();
+                draw();
+                loadingOverlay.style.opacity = '0';
+                setTimeout(() => loadingOverlay.style.display = 'none', 500);
+            });
+        };
+
+        const updateStats = () => {
+            clickCountDisplay.textContent = savedClicks.length.toLocaleString();
+            chanceDisplay.textContent = ((savedClicks.length / TOTAL_COMBINATIONS) * 100).toFixed(7) + "%";
+        };
+
+        function resize() {
+            const isMobile = window.innerWidth < 768;
+            const margin = isMobile ? 20 : 64;
+            const maxWidth = window.innerWidth - margin;
+            const maxHeight = window.innerHeight * (isMobile ? 0.5 : 0.7);
+            const size = Math.min(maxWidth, maxHeight);
+            
+            canvas.width = GRID_SIZE;
+            canvas.height = GRID_SIZE;
+            canvas.style.width = size + "px";
+            canvas.style.height = size + "px";
+            draw();
+        }
+
+        function draw() {
+            if (!ctx) return;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Ruído ambiente otimizado
+            ctx.fillStyle = '#0a1a0a';
+            for (let i = 0; i < 30000; i++) {
+                ctx.fillRect(Math.random() * GRID_SIZE, Math.random() * GRID_SIZE, 1, 1);
+            }
+
+            ctx.fillStyle = '#3b82f6';
+            savedClicks.forEach(click => ctx.fillRect(click.x - 8, click.y - 8, 16, 16));
+
+            if (lastDrawPos) renderMarker(lastDrawPos.x, lastDrawPos.y, '#22c55e', true);
+        }
+
+        function renderMarker(x, y, color, isPermanent = false) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = color;
+            ctx.fillStyle = color;
+            ctx.fillRect(x - 2, 0, 4, GRID_SIZE); 
+            ctx.fillRect(0, y - 2, GRID_SIZE, 4); 
+            ctx.fillRect(x - 12, y - 12, 24, 24);
+            ctx.shadowBlur = 0;
+            if (isPermanent) createPing(x, y);
+        }
+
+        function createPing(x, y) {
+            const rect = canvas.getBoundingClientRect();
+            const scale = rect.width / GRID_SIZE;
+            const ping = document.createElement('div');
+            ping.className = 'marker-ping';
+            ping.style.left = (x * scale - 15) + 'px';
+            ping.style.top = (y * scale - 15) + 'px';
+            ping.style.width = '30px';
+            ping.style.height = '30px';
+            ping.style.animation = 'ping-custom 1.5s ease-out infinite';
+            markerLayer.innerHTML = ''; 
+            markerLayer.appendChild(ping);
+        }
+
+        const handleAction = async (clientX, clientY) => {
+            if (!user) return;
+            const rect = canvas.getBoundingClientRect();
+            const scale = GRID_SIZE / rect.width;
+            const x = Math.floor((clientX - rect.left) * scale);
+            const y = Math.floor((clientY - rect.top) * scale);
+            if (x < 0 || y < 0 || x >= GRID_SIZE || y >= GRID_SIZE) return;
+
+            coordsXY.textContent = `${x},${y}`;
+            coordsId.textContent = `#${(y * GRID_SIZE + x).toLocaleString()}`;
+
+            try {
+                const clicksRef = collection(db, 'artifacts', appId, 'public', 'data', 'clicks');
+                await addDoc(clicksRef, { x, y, uid: user.uid, timestamp: Date.now() });
+            } catch (err) { console.error(err); }
+
+            if (Math.abs(x - winningPixel.x) < 10 && Math.abs(y - winningPixel.y) < 10) {
+                winOverlay.classList.remove('hidden');
+            }
+        };
+
+        btnDraw.addEventListener('click', () => {
+            const nums = Array.from({length: 6}, () => Math.floor(Math.random() * 60) + 1).sort((a,b) => a-b);
+            resultBalls.innerHTML = '';
+            nums.forEach(n => {
+                const b = document.createElement('div');
+                b.className = "min-w-[32px] h-8 bg-green-600 rounded-full flex items-center justify-center text-[10px] font-bold border border-white/20 shadow-lg";
+                b.textContent = n.toString().padStart(2, '0');
+                resultBalls.appendChild(b);
+            });
+
+            lastDrawPos = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE) };
+            const hit = savedClicks.some(c => Math.abs(c.x - lastDrawPos.x) < 25 && Math.abs(c.y - lastDrawPos.y) < 25);
+            statusMessage.textContent = hit ? "🎯 ACERTO COLETIVO!" : "❌ Nenhum clique nesta área.";
+            statusMessage.className = `text-center py-1.5 text-[10px] font-bold rounded-lg flex items-center justify-center px-2 ${hit ? 'bg-green-900 text-green-400' : 'bg-zinc-900 text-zinc-500'}`;
+            draw();
+        });
+
+        canvas.addEventListener('mousedown', (e) => handleAction(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleAction(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+
+        window.addEventListener('resize', resize);
+        window.onload = () => { resize(); initAuth(); };
+    </script>
+</body>
+</html>
