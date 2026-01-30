@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lotofácil: Escala Real de Pixels</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0; padding: 0; overflow: hidden;
+            background-color: #000; height: 100%; width: 100%;
+            display: flex; flex-direction: column;
+        }
+        canvas {
+            image-rendering: pixelated;
+            cursor: crosshair;
+            background-color: #000;
+            touch-action: none;
+            border: 1px solid #333;
+        }
+        .ui-panel { background: #0a0a0a; border-bottom: 1px solid #222; z-index: 50; }
+        #wrapper { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; overflow: hidden; background-color: #0a0a0a; }
+        
+        @media (min-width: 769px) {
+            #main-header { position: absolute; top: 0; left: 0; width: 350px; border-right: 1px solid #222; height: 100%; }
+        }
+    </style>
+</head>
+<body class="text-white font-sans">
+
+    <header id="main-header" class="ui-panel p-4 md:p-6 shadow-2xl">
+        <div class="mb-6">
+            <h1 class="text-xl font-black text-purple-500 leading-tight">LOTOFÁCIL 3.2M</h1>
+            <p class="text-zinc-500 text-xs italic">Escala de Pixel Real (1:1)</p>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-zinc-900/50 p-2 rounded border border-white/5">
+                <p class="text-[8px] text-zinc-500 uppercase">Bilhetes Criados</p>
+                <p id="clickCountDisplay" class="text-lg font-bold text-blue-400">0</p>
+            </div>
+            <div class="bg-zinc-900/50 p-2 rounded border border-white/5">
+                <p class="text-[8px] text-zinc-500 uppercase">Cobertura Total</p>
+                <p id="chanceDisplay" class="text-lg font-bold text-purple-400">0%</p>
+            </div>
+        </div>
+        
+        <div class="space-y-4">
+            <button id="btnDraw" class="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-bold transition-all active:scale-95 text-xs shadow-lg border border-purple-400/20">
+                SORTEAR COMBINAÇÃO
+            </button>
+            
+            <div id="resultBalls" class="grid grid-cols-5 gap-1.5 bg-black p-3 rounded-lg border border-white/5">
+                <script>
+                    for(let i=0; i<15; i++) document.write('<div class="w-full aspect-square bg-zinc-900 rounded-full flex items-center justify-center text-[10px] font-bold border border-zinc-700 text-zinc-500">--</div>');
+                </script>
+            </div>
+
+            <div id="statusMessage" class="text-center py-2 text-[10px] font-medium rounded bg-zinc-900 text-zinc-500 border border-white/5">
+                Clique no mapa para escolher um pixel
+            </div>
+
+            <div class="text-[9px] font-mono text-zinc-600 flex justify-between">
+                <span>COORDENADA: <span id="coordsXY" class="text-purple-500">0,0</span></span>
+            </div>
+        </div>
+    </header>
+
+    <main id="wrapper">
+        <div class="relative flex items-center justify-center w-full h-full p-4">
+            <canvas id="lotoCanvas"></canvas>
+        </div>
+    </main>
+
+    <script type="module">
+        const canvas = document.getElementById('lotoCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const coordsXY = document.getElementById('coordsXY');
+        const btnDraw = document.getElementById('btnDraw');
+        const resultBalls = document.getElementById('resultBalls');
+        const clickCountDisplay = document.getElementById('clickCountDisplay');
+        const chanceDisplay = document.getElementById('chanceDisplay');
+        const statusMessage = document.getElementById('statusMessage');
+
+        const TOTAL_COMBINATIONS = 3268760;
+        const GRID_SIZE = 1808; 
+
+        let savedClicks = [];
+        let lastDrawPos = null;
+
+        function resize() {
+            const wrapper = document.getElementById('wrapper');
+            const size = Math.min(wrapper.clientWidth - 40, wrapper.clientHeight - 40);
+            canvas.width = GRID_SIZE;
+            canvas.height = GRID_SIZE;
+            canvas.style.width = size + "px";
+            canvas.style.height = size + "px";
+            draw();
+        }
+
+        function draw() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Desenhar cliques do usuário (Pequenos como o sorteado)
+            ctx.fillStyle = '#3b82f6'; 
+            savedClicks.forEach(click => {
+                // Tamanho 2x2 para ser o "quase pixel" visível
+                ctx.fillRect(click.x - 1, click.y - 1, 2, 2);
+            });
+
+            // Marcador do sorteio
+            if (lastDrawPos) {
+                // Aro de localização (maior para guiar o olho)
+                ctx.strokeStyle = 'rgba(168, 85, 247, 0.6)';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(lastDrawPos.x - 15, lastDrawPos.y - 15, 30, 30);
+                
+                // O "pingo" do sorteio (mesmo tamanho 2x2 do clique)
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(lastDrawPos.x - 1, lastDrawPos.y - 1, 2, 2);
+            }
+        }
+
+        const handleAction = (clientX, clientY) => {
+            const rect = canvas.getBoundingClientRect();
+            const scale = GRID_SIZE / rect.width;
+            const x = Math.floor((clientX - rect.left) * scale);
+            const y = Math.floor((clientY - rect.top) * scale);
+            
+            if (x < 0 || y < 0 || x >= GRID_SIZE || y >= GRID_SIZE) return;
+
+            coordsXY.textContent = `${x},${y}`;
+            savedClicks.push({ x, y });
+            
+            const count = savedClicks.length;
+            clickCountDisplay.textContent = count.toLocaleString();
+            chanceDisplay.textContent = ((count / TOTAL_COMBINATIONS) * 100).toFixed(6) + "%";
+            
+            draw();
+        };
+
+        btnDraw.addEventListener('click', () => {
+            const nums = [];
+            while(nums.length < 15) {
+                const n = Math.floor(Math.random() * 25) + 1;
+                if(!nums.includes(n)) nums.push(n);
+            }
+            nums.sort((a,b) => a-b);
+
+            resultBalls.innerHTML = '';
+            nums.forEach(n => {
+                const b = document.createElement('div');
+                b.className = "w-full aspect-square bg-purple-600 rounded-full flex items-center justify-center text-[10px] font-bold border border-purple-400/30 shadow-inner";
+                b.textContent = n.toString().padStart(2, '0');
+                resultBalls.appendChild(b);
+            });
+
+            lastDrawPos = { 
+                x: Math.floor(Math.random() * GRID_SIZE), 
+                y: Math.floor(Math.random() * GRID_SIZE) 
+            };
+            
+            statusMessage.textContent = "Sorteio processado no mapa.";
+            draw();
+        });
+
+        canvas.addEventListener('mousedown', (e) => handleAction(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleAction(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+
+        window.addEventListener('resize', resize);
+        window.onload = resize;
+    </script>
+</body>
+</html>
