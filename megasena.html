@@ -18,7 +18,7 @@
             background-color: #0a0a0a;
             height: 100%;
             width: 100%;
-            position: fixed; /* Evita bounce em iOS */
+            position: fixed;
         }
         canvas {
             image-rendering: pixelated;
@@ -60,7 +60,7 @@
             justify-content: center;
             height: 100%;
             width: 100%;
-            padding-top: 80px; /* Espaço para o header mobile */
+            padding-top: 80px;
         }
         #loading-overlay {
             position: fixed;
@@ -72,7 +72,6 @@
             justify-content: center;
             transition: opacity 0.5s;
         }
-        /* Ajustes mobile-specific */
         @media (max-width: 768px) {
             #wrapper { padding-top: 120px; padding-bottom: 20px; }
             .mobile-header { width: 100%; top: 0; left: 0; border-radius: 0; }
@@ -84,8 +83,8 @@
 
     <div id="loading-overlay">
         <div class="text-center p-6">
-            <div class="inline-block w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p class="text-green-500 font-bold tracking-widest uppercase text-sm">Sincronizando Probabilidades...</p>
+            <div id="loading-spinner" class="inline-block w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p id="loading-text" class="text-green-500 font-bold tracking-widest uppercase text-sm">Sincronizando Probabilidades...</p>
         </div>
     </div>
 
@@ -137,7 +136,6 @@
             <canvas id="megaCanvas"></canvas>
             <div id="markerLayer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
         </div>
-        
         <div id="tooltip" class="absolute z-50 bg-white text-black text-[10px] font-bold px-2 py-1 rounded shadow-xl pointer-events-none"></div>
     </div>
 
@@ -152,15 +150,10 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-mobile-v1';
-
+        // Elementos UI
         const canvas = document.getElementById('megaCanvas');
         const ctx = canvas.getContext('2d');
         const markerLayer = document.getElementById('markerLayer');
@@ -174,6 +167,7 @@
         const tooltip = document.getElementById('tooltip');
         const statusMessage = document.getElementById('statusMessage');
         const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingText = document.getElementById('loading-text');
 
         const TOTAL_COMBINATIONS = 50063860;
         const GRID_SIZE = 7076; 
@@ -182,39 +176,74 @@
         let lastDrawPos = null;
         let winningPixel = { x: 3500, y: 3500 }; 
         let user = null;
+        let db, auth;
 
-        const initAuth = async () => {
-            try { await signInAnonymously(auth); } catch (err) { console.error(err); }
+        // --- INICIALIZAÇÃO SEGURA ---
+        const startApp = async () => {
+            try {
+                if (typeof __firebase_config !== 'undefined') {
+                    const firebaseConfig = JSON.parse(__firebase_config);
+                    const app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-mobile-v1';
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+
+                    onAuthStateChanged(auth, (currUser) => {
+                        if (currUser) {
+                            user = currUser;
+                            setupSync(appId);
+                        }
+                    });
+                } else {
+                    loadingText.textContent = "Modo Local: Offline (Sem Firebase Config)";
+                    loadingText.classList.replace('text-green-500', 'text-yellow-500');
+                    setTimeout(() => {
+                        hideLoading();
+                        draw(); 
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error("Erro na inicialização:", err);
+                loadingText.textContent = "Erro de Conexão. Verifique a consola.";
+                loadingText.classList.replace('text-green-500', 'text-red-500');
+            }
         };
 
-        onAuthStateChanged(auth, (currUser) => {
-            if (currUser) {
-                user = currUser;
-                setupSync();
-            }
-        });
+        const hideLoading = () => {
+            loadingOverlay.style.opacity = '0';
+            setTimeout(() => loadingOverlay.style.display = 'none', 500);
+        };
 
-        const setupSync = () => {
+        const setupSync = (appId) => {
+            // CORREÇÃO: Usando caminhos de 6 segmentos para documentos de configuração pública
             const clicksRef = collection(db, 'artifacts', appId, 'public', 'data', 'clicks');
-            const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config');
+            const configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'global');
 
-            onSnapshot(configRef, (docSnap) => {
+            onSnapshot(configDocRef, (docSnap) => {
                 if (docSnap.exists()) {
                     winningPixel = docSnap.data().winningPixel;
                 } else {
                     const newWinning = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE) };
-                    setDoc(configRef, { winningPixel: newWinning });
+                    setDoc(configDocRef, { winningPixel: newWinning });
                     winningPixel = newWinning;
                 }
-            });
+            }, (err) => console.warn("Firestore Config Error:", err));
 
             onSnapshot(clicksRef, (snapshot) => {
                 savedClicks = [];
                 snapshot.forEach(doc => savedClicks.push(doc.data()));
                 updateStats();
                 draw();
-                loadingOverlay.style.opacity = '0';
-                setTimeout(() => loadingOverlay.style.display = 'none', 500);
+                hideLoading();
+            }, (err) => {
+                console.error("Firestore Sync Error:", err);
+                hideLoading();
             });
         };
 
@@ -242,7 +271,6 @@
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Ruído ambiente otimizado
             ctx.fillStyle = '#0a1a0a';
             for (let i = 0; i < 30000; i++) {
                 ctx.fillRect(Math.random() * GRID_SIZE, Math.random() * GRID_SIZE, 1, 1);
@@ -280,7 +308,6 @@
         }
 
         const handleAction = async (clientX, clientY) => {
-            if (!user) return;
             const rect = canvas.getBoundingClientRect();
             const scale = GRID_SIZE / rect.width;
             const x = Math.floor((clientX - rect.left) * scale);
@@ -290,10 +317,17 @@
             coordsXY.textContent = `${x},${y}`;
             coordsId.textContent = `#${(y * GRID_SIZE + x).toLocaleString()}`;
 
-            try {
-                const clicksRef = collection(db, 'artifacts', appId, 'public', 'data', 'clicks');
-                await addDoc(clicksRef, { x, y, uid: user.uid, timestamp: Date.now() });
-            } catch (err) { console.error(err); }
+            if (db && user) {
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-mobile-v1';
+                    const clicksRef = collection(db, 'artifacts', appId, 'public', 'data', 'clicks');
+                    await addDoc(clicksRef, { x, y, uid: user.uid, timestamp: Date.now() });
+                } catch (err) { console.warn("Erro ao salvar clique online:", err); }
+            } else {
+                savedClicks.push({ x, y });
+                updateStats();
+                draw();
+            }
 
             if (Math.abs(x - winningPixel.x) < 10 && Math.abs(y - winningPixel.y) < 10) {
                 winOverlay.classList.remove('hidden');
@@ -312,7 +346,7 @@
 
             lastDrawPos = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE) };
             const hit = savedClicks.some(c => Math.abs(c.x - lastDrawPos.x) < 25 && Math.abs(c.y - lastDrawPos.y) < 25);
-            statusMessage.textContent = hit ? "🎯 ACERTO COLETIVO!" : "❌ Nenhum clique nesta área.";
+            statusMessage.textContent = hit ? "🎯 ACERTO!" : "❌ Nenhum clique nesta área.";
             statusMessage.className = `text-center py-1.5 text-[10px] font-bold rounded-lg flex items-center justify-center px-2 ${hit ? 'bg-green-900 text-green-400' : 'bg-zinc-900 text-zinc-500'}`;
             draw();
         });
@@ -323,8 +357,8 @@
             handleAction(e.touches[0].clientX, e.touches[0].clientY);
         }, { passive: false });
 
-        window.addEventListener('resize', resize);
-        window.onload = () => { resize(); initAuth(); };
+            window.addEventListener('resize', resize);
+            window.onload = () => { resize(); startApp(); };
     </script>
 </body>
 </html>
