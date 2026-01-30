@@ -15,11 +15,9 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            /* Cor de fundo diferente do preto do quadro para criar contraste */
             background-color: #1a1c1e; 
             height: 100%;
             width: 100%;
-            position: fixed;
             display: flex;
             flex-direction: column;
         }
@@ -32,9 +30,9 @@
             box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
         }
         .ui-panel {
-            background: rgba(10, 10, 10, 0.95);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(10, 10, 10, 1);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            z-index: 50;
         }
         #wrapper {
             flex: 1;
@@ -43,7 +41,7 @@
             justify-content: center;
             width: 100%;
             overflow: hidden;
-            padding: 10px;
+            background-color: #1a1c1e;
         }
         #loading-overlay {
             position: fixed;
@@ -55,16 +53,24 @@
             justify-content: center;
             transition: opacity 0.5s;
         }
-        /* Mobile Specific Layout - 20% UI / 80% Game */
+        /* Mobile adjustment to prevent any overlap */
         @media (max-width: 768px) {
             #main-header {
-                height: 25%; /* Leve aumento para caber todas as infos */
-                min-height: 160px;
-                padding: 0.5rem;
+                position: relative; /* Mantém no fluxo, empurrando o wrapper para baixo */
+                width: 100%;
+                height: auto;
+                max-height: 40%;
+                padding-bottom: 10px;
             }
-            #wrapper {
-                height: 75%;
-                padding: 5px;
+        }
+        @media (min-width: 769px) {
+            #main-header {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 320px;
+                border-right: 1px solid rgba(255, 255, 255, 0.1);
+                border-bottom-right-radius: 1rem;
             }
         }
     </style>
@@ -78,60 +84,57 @@
         </div>
     </div>
 
-    <!-- Interface Consolidada (Topo) -->
-    <header id="main-header" class="ui-panel relative z-20 w-full p-3 md:p-6 md:absolute md:top-0 md:left-0 md:w-80 md:h-auto md:rounded-br-2xl md:border-r">
-        <div class="flex justify-between items-start">
+    <!-- Interface Consolidada -->
+    <header id="main-header" class="ui-panel p-3 md:p-6">
+        <div class="flex justify-between items-start mb-2">
             <div>
-                <h1 class="text-base md:text-xl font-black text-green-500 leading-tight">MEGA-SENA GLOBAL</h1>
-                <p class="text-white text-[9px] md:text-xs font-normal opacity-70">1 em 50.063.860 combinações</p>
+                <h1 class="text-sm md:text-xl font-black text-green-500 leading-tight">MEGA-SENA GLOBAL</h1>
+                <p class="text-white text-[8px] md:text-xs font-normal opacity-70">1 em 50.063.860 combinações</p>
             </div>
             
-            <!-- Status Compacto Lateral -->
-            <div class="text-right">
-                <div class="mb-1">
-                    <p class="text-[8px] text-zinc-500 uppercase leading-none">Cliques</p>
-                    <p id="clickCountDisplay" class="text-xs md:text-lg font-bold text-blue-400">0</p>
+            <div class="text-right flex gap-4 md:block">
+                <div class="md:mb-2">
+                    <p class="text-[7px] md:text-[8px] text-zinc-500 uppercase leading-none">Cliques</p>
+                    <p id="clickCountDisplay" class="text-xs md:text-lg font-bold text-blue-400 leading-none">0</p>
                 </div>
                 <div>
-                    <p class="text-[8px] text-zinc-500 uppercase leading-none">Cobertura</p>
-                    <p id="chanceDisplay" class="text-xs md:text-lg font-bold">0%</p>
+                    <p class="text-[7px] md:text-[8px] text-zinc-500 uppercase leading-none">Cobertura</p>
+                    <p id="chanceDisplay" class="text-xs md:text-lg font-bold leading-none">0%</p>
                 </div>
             </div>
         </div>
         
-        <div class="mt-3 space-y-2">
+        <div class="space-y-2">
             <div class="flex flex-col gap-2">
-                <button id="btnDraw" class="w-full bg-green-600 hover:bg-green-500 py-2 rounded-lg font-bold transition-all active:scale-95 text-xs md:text-sm shadow-lg shadow-green-900/20">
+                <button id="btnDraw" class="w-full bg-green-600 hover:bg-green-500 py-2 rounded-lg font-bold transition-all active:scale-95 text-[10px] md:text-sm shadow-lg">
                     SIMULAR SORTEIO (6 NÚMEROS)
                 </button>
                 
-                <!-- Área dos Números Sorteados -->
-                <div id="resultBalls" class="flex justify-between md:justify-start gap-1 items-center bg-black/40 p-2 rounded-lg border border-white/5">
-                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
-                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
-                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
-                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
-                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
-                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-zinc-600">--</div>
+                <div id="resultBalls" class="flex justify-between gap-1 items-center bg-black/40 p-1 rounded-lg border border-white/5">
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[9px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[9px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[9px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[9px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[9px] md:text-xs font-bold border border-zinc-600">--</div>
+                    <div class="w-7 h-7 md:w-9 md:h-9 bg-zinc-800 rounded-full flex items-center justify-center text-[9px] md:text-xs font-bold border border-zinc-600">--</div>
                 </div>
             </div>
 
-            <div id="statusMessage" class="text-center py-1 text-[10px] font-bold rounded bg-zinc-900/50 text-zinc-400 border border-white/5">
-                Toque no mapa para marcar seu pixel
+            <div id="statusMessage" class="text-center py-1 text-[9px] md:text-[10px] font-bold rounded bg-zinc-900 text-zinc-400 border border-white/5">
+                Toque no mapa abaixo para marcar
             </div>
 
-            <div class="pt-1 text-[9px] font-mono text-zinc-500 flex justify-between">
-                <span>POS: <span id="coordsXY" class="text-green-400">0,0</span></span>
+            <div class="text-[8px] md:text-[9px] font-mono text-zinc-500 flex justify-between uppercase">
+                <span>COORD: <span id="coordsXY" class="text-green-400">0,0</span></span>
                 <span id="coordsId" class="opacity-50">#0</span>
             </div>
         </div>
     </header>
 
-    <!-- Container do Canvas (Maximização do Espaço) -->
+    <!-- O wrapper ocupa o restante da tela sem sobreposição -->
     <main id="wrapper">
-        <div class="relative flex items-center justify-center w-full h-full">
+        <div class="relative flex items-center justify-center w-full h-full p-2">
             <canvas id="megaCanvas"></canvas>
-            <div id="markerLayer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
         </div>
     </main>
 
@@ -151,7 +154,6 @@
 
         const canvas = document.getElementById('megaCanvas');
         const ctx = canvas.getContext('2d');
-        const markerLayer = document.getElementById('markerLayer');
         const coordsId = document.getElementById('coordsId');
         const coordsXY = document.getElementById('coordsXY');
         const btnDraw = document.getElementById('btnDraw');
@@ -179,7 +181,7 @@
                     const app = initializeApp(firebaseConfig);
                     auth = getAuth(app);
                     db = getFirestore(app);
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-v2';
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-v3';
 
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         await signInWithCustomToken(auth, __initial_auth_token);
@@ -228,18 +230,15 @@
         const updateStats = () => {
             const count = savedClicks.length;
             const chance = ((count / TOTAL_COMBINATIONS) * 100).toFixed(7) + "%";
-            
             clickCountDisplay.textContent = count.toLocaleString();
             chanceDisplay.textContent = chance;
         };
 
         function resize() {
             const wrapper = document.getElementById('wrapper');
-            const padding = 10;
+            const padding = 20;
             const availableWidth = wrapper.clientWidth - padding;
             const availableHeight = wrapper.clientHeight - padding;
-            
-            // Tenta usar o máximo de espaço mantendo proporção 1:1
             const size = Math.min(availableWidth, availableHeight);
             
             canvas.width = GRID_SIZE;
@@ -251,23 +250,19 @@
 
         function draw() {
             if (!ctx) return;
-            // Fundo do quadro (Preto Puro)
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // "Ruído" para parecer pixels individuais
             ctx.fillStyle = '#111';
             for (let i = 0; i < 15000; i++) {
                 ctx.fillRect(Math.random() * GRID_SIZE, Math.random() * GRID_SIZE, 3, 3);
             }
 
-            // Desenhar cliques
-            ctx.fillStyle = '#3b82f6'; // Azul vibrante
+            ctx.fillStyle = '#3b82f6'; 
             savedClicks.forEach(click => {
                 ctx.fillRect(click.x - 12, click.y - 12, 24, 24);
             });
 
-            // Indicador de sorteio (última tentativa da máquina)
             if (lastDrawPos) {
                 ctx.strokeStyle = '#22c55e';
                 ctx.lineWidth = 10;
@@ -287,7 +282,7 @@
 
             if (db && user) {
                 try {
-                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-v2';
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'megasena-global-v3';
                     const clicksRef = collection(db, 'artifacts', appId, 'public', 'data', 'clicks');
                     await addDoc(clicksRef, { x, y, uid: user.uid, timestamp: Date.now() });
                 } catch (err) {}
@@ -303,7 +298,6 @@
         };
 
         btnDraw.addEventListener('click', () => {
-            // Sorteio de 6 números
             const nums = [];
             while(nums.length < 6) {
                 const n = Math.floor(Math.random() * 60) + 1;
@@ -314,12 +308,11 @@
             resultBalls.innerHTML = '';
             nums.forEach(n => {
                 const b = document.createElement('div');
-                b.className = "w-7 h-7 md:w-9 md:h-9 bg-green-600 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-white/20 shadow-md";
+                b.className = "w-7 h-7 md:w-9 md:h-9 bg-green-600 rounded-full flex items-center justify-center text-[10px] md:text-xs font-bold border border-white/20";
                 b.textContent = n.toString().padStart(2, '0');
                 resultBalls.appendChild(b);
             });
 
-            // Simula um "scan" aleatório no mapa
             lastDrawPos = { 
                 x: Math.floor(Math.random() * GRID_SIZE), 
                 y: Math.floor(Math.random() * GRID_SIZE) 
